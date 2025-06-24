@@ -10,9 +10,9 @@ app = Flask(__name__)
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
-titleider = "D0A23"
-secretkey = "7Z1ZNGK5JM1FAGK8QIPFBF4KOBZIWEO4CSCEID3WPF5YS3ZGX7"
-ApiKey = "OC|8516071385087983|1c2fca488221397af9d9dfa80f647b42"
+titleider = "B9609"
+secretkey = "EDQG9ATHPJY7OZWP1DNQQE1PXFGTHPP4Z7W7DBEFO4NHU1IG37"
+ApiKey = "OC|9051412114946139|5561860b6cae7cfb086c6938ff172b62"
 name_saves = {}
 
 # Use environment variables for sensitive data
