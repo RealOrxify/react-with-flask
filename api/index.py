@@ -101,7 +101,7 @@ def cacheplayfabid():
 
 @app.route("/", methods=["POST", "GET"])
 def Rizz():
-    return "backend good"
+    return "maybe this thing works now"
 
 
 @app.route("/api/td", methods=["POST", "GET"])
