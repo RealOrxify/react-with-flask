@@ -167,79 +167,50 @@ def playfab_authentication():
             "Error": "BadRequest-NoOCorPIPrefix"
         }), 400
 
+    # Login with ServerCustomId
     url = f"https://{titleider}.playfabapi.com/Server/LoginWithServerCustomId"
     login_request = requests.post(
         url=url,
-        json={
-            "ServerCustomId": custom_id,
-            "CreateAccount": True
-        },
+        json={"ServerCustomId": custom_id, "CreateAccount": True},
         headers=GetAuthHeaders()
     )
 
-    if login_request.status_code == 200:
-        data = login_request.json().get("data", {})
-        session_ticket = data.get("SessionTicket")
-        entity_token_data = data.get("EntityToken", {})
-        entity_token = entity_token_data.get("EntityToken")
-        playfab_id = data.get("PlayFabId")
-        entity_data = entity_token_data.get("Entity", {})
-        entity_type = entity_data.get("Type"),
-        entity_id = entity_data.get("Id"),
+    if login_request.status_code != 200:
+        return login_error_handler(login_request)
 
-        link_response = requests.post(
-            url=f"https://{titleider}.playfabapi.com/Server/LinkServerCustomId",
-            json={
-                "ForceLink": True,
-                "PlayFabId": playfab_id,
-                "ServerCustomId": custom_id,
-            },
+    data = login_request.json().get("data", {})
+    session_ticket = data.get("SessionTicket")
+    entity_token_data = data.get("EntityToken", {})
+    playfab_id = data.get("PlayFabId")
+    entity_token = entity_token_data.get("EntityToken")
+    entity_data = entity_token_data.get("Entity", {})
+    entity_type = entity_data.get("Type")
+    entity_id = entity_data.get("Id")
+
+    # Fallback timestamp if missing
+    account_timestamp = datetime.utcnow().isoformat() + "Z"
+
+    # Try to get account creation timestamp (optional but expected)
+    try:
+        get_user_response = requests.post(
+            url=f"https://{titleider}.playfabapi.com/Server/GetUserAccountInfo",
+            json={"PlayFabId": playfab_id},
             headers=GetAuthHeaders()
         )
+        account_timestamp = get_user_response.json().get("UserInfo", {}) \
+                            .get("UserAccountInfo", {}) \
+                            .get("Created", account_timestamp)
+    except:
+        pass
 
-        if link_response.status_code != 200:
-            link_response_json = link_response.json()
-            error_message = link_response_json.get('errorMessage', 'Unknown error')
-            error_details = link_response_json.get('errorDetails', {})
-            return jsonify({
-                "ErrorMessage": error_message,
-                "ErrorDetails": error_details
-            }), link_response.status_code
-
-        return jsonify({
-            "PlayFabId": playfab_id,
-            "SessionTicket": session_ticket,
-            "EntityToken": entity_token,
-            "EntityId": entity_id,
-            "EntityType": entity_type,
-        }), 200
-    else:
-        if login_request.status_code == 403:
-            ban_info = login_request.json()
-            if ban_info.get('errorCode') == 1002:
-                ban_message = ban_info.get('errorMessage', "No ban message provided.")
-                ban_details = ban_info.get('errorDetails', {})
-                ban_expiration_key = next(iter(ban_details.keys()), None)
-                ban_expiration_list = ban_details.get(ban_expiration_key, [])
-                ban_expiration = ban_expiration_list[0] if len(ban_expiration_list) > 0 else "No expiration date provided."
-                print(ban_info)
-                return jsonify({
-                    'BanMessage': ban_expiration_key,
-                    'BanExpirationTime': ban_expiration
-                }), 403
-            else:
-                error_message = ban_info.get('errorMessage', 'Forbidden without ban information.')
-                return jsonify({
-                    'Error': 'PlayFab Error',
-                    'Message': error_message
-                }), 403
-        else:
-            error_info = login_request.json()
-            error_message = error_info.get('errorMessage', 'An error occurred.')
-            return jsonify({
-                'Error': 'PlayFab Error',
-                'Message': error_message
-            }), login_request.status_code
+    return jsonify({
+        "PlayFabId": playfab_id,
+        "SessionTicket": session_ticket,
+        "EntityToken": entity_token,
+        "EntityId": entity_id,
+        "EntityType": entity_type,
+        "AccountCreationIsoTimestamp": account_timestamp
+    }), 200
 
 @app.route("/api/photon", methods=["POST"])
 def photonauth():
