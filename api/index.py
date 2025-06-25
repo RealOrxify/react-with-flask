@@ -214,133 +214,51 @@ def playfab_authentication():
 
 @app.route("/api/photon", methods=["POST"])
 def photonauth():
-    print(f"Received {request.method} request at /api/photon")
-    getjson = request.get_json()
-    Ticket = getjson.get("Ticket")
-    Nonce = getjson.get("Nonce")
-    AppVersion = getjson.get("AppVersion")
-    Platform = getjson.get("Platform")
-    UserId = getjson.get("UserId")
-    nickName = getjson.get("username")
-    if request.method.upper() == "GET":
-        rjson = request.get_json()
-        print(f"{request.method} : {rjson}")
+    print("Received POST request at /api/photon")
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'resultCode': 2, 'message': 'No JSON received', 'userId': None, 'nickname': None}), 400
 
-        userId = Ticket.split('-')[0] if Ticket else None
-        print(f"Extracted userId: {UserId}")
+    ticket = data.get("Ticket")
+    if not ticket or "-" not in ticket:
+        return jsonify({'resultCode': 2, 'message': 'Invalid or missing Ticket', 'userId': None, 'nickname': None}), 400
 
-        if userId is None or len(userId) != 16:
-            print("Invalid userId")
-            return jsonify({
-                'resultCode': 2,
-                'message': 'Invalid token',
-                'userId': None,
-                'nickname': None
-            })
+    playfab_id = ticket.split('-')[0]
+    if len(playfab_id) != 16:
+        return jsonify({'resultCode': 2, 'message': 'Invalid PlayFab ID length', 'userId': None, 'nickname': None}), 400
 
-        if Platform != 'Quest':
-            return jsonify({'Error': 'Bad request', 'Message': 'Invalid platform!'}),403
-
-        if Nonce is None:
-            return jsonify({'Error': 'Bad request', 'Message': 'Not Authenticated!'}),304
-
-        req = requests.post(
+    try:
+        res = requests.post(
             url=f"https://{titleider}.playfabapi.com/Server/GetUserAccountInfo",
-            json={"PlayFabId": userId},
+            json={"PlayFabId": playfab_id},
             headers={
-                "content-type": "application/json",
+                "Content-Type": "application/json",
                 "X-SecretKey": secretkey
-            })
+            }
+        )
+        print(f"Request to PlayFab returned status code: {res.status_code}")
+    except Exception as e:
+        print(f"Request to PlayFab failed: {e}")
+        return jsonify({'resultCode': 0, 'message': 'PlayFab request failed', 'userId': None, 'nickname': None}), 500
 
-        print(f"Request to PlayFab returned status code: {req.status_code}")
-
-        if req.status_code == 200:
-            nickName = req.json().get("UserInfo",
-                                      {}).get("UserAccountInfo",
-                                              {}).get("Username")
-            if not nickName:
-                nickName = None
-
-            print(
-                f"Authenticated user {userId.lower()} with nickname: {nickName}"
-            )
-
-            return jsonify({
-                'resultCode': 1,
-                'message':
-                f'Authenticated user {userId.lower()} title {titleider.lower()}',
-                'userId': f'{userId.upper()}',
-                'nickname': nickName
-            })
-        else:
-            print("Failed to get user account info from PlayFab")
-            return jsonify({
-                'resultCode': 0,
-                'message': "Something went wrong",
-                'userId': None,
-                'nickname': None
-            })
-
-    elif request.method.upper() == "POST":
-        rjson = request.get_json()
-        print(f"{request.method} : {rjson}")
-
-        ticket = rjson.get("Ticket")
-        userId = ticket.split('-')[0] if ticket else None
-        print(f"Extracted userId: {userId}")
-
-        if userId is None or len(userId) != 16:
-            print("Invalid userId")
-            return jsonify({
-                'resultCode': 2,
-                'message': 'Invalid token',
-                'userId': None,
-                'nickname': None
-            })
-
-        req = requests.post(
-             url=f"https://{titleider}.playfabapi.com/Server/GetUserAccountInfo",
-             json={"PlayFabId": userId},
-             headers={
-                 "content-type": "application/json",
-                 "X-SecretKey": secretkey
-             })
-
-        print(f"Authenticated user {userId.lower()}")
-        print(f"Request to PlayFab returned status code: {req.status_code}")
-
-        if req.status_code == 200:
-             nickName = req.json().get("UserInfo",
-                                       {}).get("UserAccountInfo",
-                                               {}).get("Username")
-             if not nickName:
-                 nickName = None
-             return jsonify({
-                 'resultCode': 1,
-                 'message':
-                 f'Authenticated user {userId.lower()} title {titleider.lower()}',
-                 'userId': f'{userId.upper()}',
-                 'nickname': nickName
-             })
-        else:
-             print("Failed to get user account info from PlayFab")
-             successJson = {
-                 'resultCode': 0,
-                 'message': "Something went wrong",
-                 'userId': None,
-                 'nickname': None
-             }
-             authPostData = {}
-             for key, value in authPostData.items():
-                 successJson[key] = value
-             print(f"Returning successJson: {successJson}")
-             return jsonify(successJson)
+    if res.status_code == 200:
+        nick = res.json().get("UserInfo", {}).get("UserAccountInfo", {}).get("Username", None)
+        print(f"Authenticated user {playfab_id.lower()} with nickname: {nick}")
+        return jsonify({
+            'resultCode': 1,
+            'message': f'Authenticated user {playfab_id.lower()} title {titleider.lower()}',
+            'userId': playfab_id.upper(),
+            'nickname': nick
+        })
     else:
-         print(f"Invalid method: {request.method.upper()}")
-         return jsonify({
-             "Message":
-             "Use a POST or GET Method instead of " + request.method.upper()
-         })
+        print("Failed to get user account info from PlayFab")
+        return jsonify({
+            'resultCode': 0,
+            'message': "Something went wrong",
+            'userId': None,
+            'nickname': None
+        }), res.status_code
 
 def ReturnFunctionJson(data, funcname, funcparam={}):
     print(f"Calling function: {funcname} with parameters: {funcparam}")
